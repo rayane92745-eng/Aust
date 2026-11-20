@@ -5,6 +5,7 @@
 #include "../../include/ast.hpp"
 #include <vector>
 #include <memory>
+#include <string>
 
 class Parser {
 public:
@@ -15,6 +16,7 @@ private:
     std::vector<Token> tokens;
     int current = 0;
 
+    // Parsing rules
     std::unique_ptr<Stmt> declaration();
     std::unique_ptr<Stmt> statement();
     std::unique_ptr<Expr> expression();
@@ -22,7 +24,7 @@ private:
     std::unique_ptr<Expr> multiplication();
     std::unique_ptr<Expr> primary();
 
-    // Helper methods
+    // Helpers
     bool isAtEnd();
     Token advance();
     Token peek();
