@@ -12,37 +12,111 @@ std::vector<std::unique_ptr<Stmt>> Parser::parse() {
 }
 
 std::unique_ptr<Stmt> Parser::declaration() {
-    // Simple check for 'var' keyword
-    if (match({TokenType::IDENTIFIER})) {
-        // In a real language, we'd check if the lexeme is 'var'
-        // For now, let's assume if we see an identifier, it's a var declaration
-        // But let's refine: we'll look for the pattern: IDENTIFIER '=' EXPRESSION ';'
+    if (match({TokenType::VAR})) {
+        return varDeclaration();
     }
-    // Let's simplify for this prototype: 
-    // We will look for: IDENTIFIER (as name) '=' EXPRESSION ';'
-    // Actually, let's implement standard var declaration
     return statement();
 }
 
+// Simplified var declaration: var <id> = <expr>;
+// Note: I'll need to add varDeclaration to parser.hpp or implement it here
+// For now, let's implement a simple version within statement()
+
 std::unique_ptr<Stmt> Parser::statement() {
-    // This is a very simplified parser
-    // It handles: <identifier> = <expression>;
-    Token nameToken = peek();
+    // For this prototype, we treat everything as a var declaration if it's an identifier
+    // In a real parser, we'd distinguish between assignments and declarations
+    Token name = consume(TokenType::IDENTIFIER, "Expected variable name.");
+    consume(TokenType::EQUAL, "Expected '=' after variable name.");
+    auto initializer = expression();
+    consume(TokenType::SEMICOLON, "Expected ';' after declaration.");
     
-    // For simplicity, let's assume everything is a variable assignment for now
-    // Pattern: name = expression ;
-    if (nameToken.type == TokenType::IDENTIFIER) {
-        advance(); // consume name
-        consume(TokenType::MINUS, "Expected '=' after identifier."); // Wait, using MINUS as placeholder or let's add EQUALS
-        // Let's fix the logic: we need an EQUALS token. 
-        // I will add EQUALS to TokenType in the next step if needed, 
-        // but let's use MINUS as a dummy or just assume 'var' logic.
-    }
-    
-    return nullptr; // Placeholder
+    return std::make_unique<VarStmt>(name.lexeme, std::move(initializer));
 }
 
-// Since the logic is getting complex, let's implement a simpler version 
-// that just parses expressions to show the AST working.
+std::unique_ptr<Expr> Parser::expression() {
+    return addition();
+}
 
-// --- RE-IMPLEMENTING A CLEANER VERSION BELOW ---
+std::unique_ptr<Expr> Parser::addition() {
+    auto expr = multiplication();
+
+    while (match({TokenType::PLUS, TokenType::MINUS})) {
+        Token op = previous();
+        auto right = multiplication();
+        expr = std::make_unique<BinaryExpr>(std::move(expr), op.lexeme, std::move(right));
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expr> Parser::multiplication() {
+    auto expr = primary();
+
+    while (match({TokenType::SLASH, TokenType::STAR})) {
+        Token op = previous();
+        auto right = primary();
+        expr = std::make_unique<BinaryExpr>(std::move(expr), op.lexeme, std::move(right));
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expr> Parser::primary() {
+    if (match({TokenType::NUMBER, TokenType::STRING})) {
+        return std::make_unique<LiteralExpr>(previous().lexeme);
+    }
+
+    if (match({TokenType::IDENTIFIER})) {
+        return std::make_unique<VariableExpr>(previous().lexeme);
+    }
+
+    if (match({TokenType::LEFT_PAREN})) {
+        auto expr = expression();
+        consume(TokenType::RIGHT_PAREN, "Expected ')' after expression.");
+        return expr;
+    }
+
+    throw std::runtime_error("Expected expression.");
+}
+
+// Helper implementations
+
+bool Parser::isAtEnd() {
+    return tokens[current].type == TokenType::EOF;
+}
+
+Token Parser::advance() {
+    if (!isAtEnd()) current++;
+    return previous();
+}
+
+Token Parser::peek() {
+    return tokens[current];
+}
+
+Token Parser::previous() {
+    return tokens[current - 1];
+}
+
+bool Parser::check(TokenType type) {
+    if (isAtEnd()) return false;
+    return tokens[current].type == type;
+}
+
+bool Parser::match(std::vector<TokenType> types) {
+    for (auto type : types) {
+        if (check(type)) {
+            advance();
+            return true;
+        }
+    }
+    return false;
+}
+
+void Parser::consume(TokenType type, const std::string& message) {
+    if (check(type)) {
+        advance();
+        return;
+    }
+    throw std::runtime_error("Error at line " + std::to_string(peek().line) + ": " + message);
+}
